@@ -1,0 +1,65 @@
+name: Temporary Local Qwen3.5 Ocean Math Benchmark
+
+on:
+  push:
+    branches:
+      - tmp-ai-math-benchmark-20260812
+    paths:
+      - '.github/workflows/tmp_ai_math_qwen35.yml'
+      - 'temporary/ai_math_qwen35/**'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: '1'
+  OLLAMA_NUM_PARALLEL: '1'
+  OLLAMA_MAX_LOADED_MODELS: '1'
+
+jobs:
+  evaluate-qwen35:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Check out benchmark branch
+        uses: actions/checkout@v4
+
+      - name: Record runner environment
+        run: |
+          mkdir -p evidence_qwen35
+          python --version | tee evidence_qwen35/runner_environment.txt
+          uname -a | tee -a evidence_qwen35/runner_environment.txt
+          lscpu | tee -a evidence_qwen35/runner_environment.txt
+          free -h | tee -a evidence_qwen35/runner_environment.txt
+          git rev-parse HEAD | tee -a evidence_qwen35/runner_environment.txt
+
+      - name: Install and start Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama --version | tee evidence_qwen35/ollama_version.txt
+          nohup ollama serve > evidence_qwen35/ollama_server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:11434/api/tags
+
+      - name: Pull exact current-generation open-weight model
+        run: |
+          ollama pull qwen3.5:4b
+          ollama list | tee evidence_qwen35/ollama_list.txt
+          ollama show qwen3.5:4b --modelfile | tee evidence_qwen35/model_modelfile.txt
+
+      - name: Run fixed-prompt local-model evaluation
+        run: python temporary/ai_math_qwen35/run_qwen35_ollama.py
+
+      - name: Upload immutable raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-math-qwen35-evidence
+          path: evidence_qwen35/
+          if-no-files-found: error
+          retention-days: 7
