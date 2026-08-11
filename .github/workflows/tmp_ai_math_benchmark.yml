@@ -1,0 +1,42 @@
+name: Temporary AI Math Benchmark
+
+on:
+  push:
+    branches:
+      - tmp-ai-math-benchmark-20260812
+    paths:
+      - '.github/workflows/tmp_ai_math_benchmark.yml'
+      - 'temporary/ai_math_benchmark/**'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out benchmark branch
+        uses: actions/checkout@v4
+
+      - name: Record runner environment
+        run: |
+          mkdir -p evidence
+          python --version | tee evidence/runner_environment.txt
+          uname -a | tee -a evidence/runner_environment.txt
+          git rev-parse HEAD | tee -a evidence/runner_environment.txt
+
+      - name: Run fixed-prompt external-model evaluation
+        run: python temporary/ai_math_benchmark/run_eval.py
+
+      - name: Upload immutable raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-math-benchmark-evidence
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
