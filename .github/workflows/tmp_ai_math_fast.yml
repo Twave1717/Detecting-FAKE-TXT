@@ -1,0 +1,42 @@
+name: Temporary AI Math Fast Benchmark
+
+on:
+  push:
+    branches:
+      - tmp-ai-math-benchmark-20260812
+    paths:
+      - '.github/workflows/tmp_ai_math_fast.yml'
+      - 'temporary/ai_math_fast/**'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  evaluate-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out benchmark branch
+        uses: actions/checkout@v4
+
+      - name: Record runner environment
+        run: |
+          mkdir -p evidence_fast
+          python --version | tee evidence_fast/runner_environment.txt
+          uname -a | tee -a evidence_fast/runner_environment.txt
+          git rev-parse HEAD | tee -a evidence_fast/runner_environment.txt
+
+      - name: Run focused parallel external-model evaluation
+        run: python temporary/ai_math_fast/run_fast.py
+
+      - name: Upload raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-math-fast-evidence
+          path: evidence_fast/
+          if-no-files-found: error
+          retention-days: 7
